@@ -20,7 +20,7 @@ type Parser struct {
 	}
 }
 
-func ParseFile(path string) (*IonValue, error) {
+func ParseFile(path string) (*Value, error) {
 	fi, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -30,11 +30,11 @@ func ParseFile(path string) (*IonValue, error) {
 	return parseFrom(path, reader)
 }
 
-func Parse(reader io.Reader) (*IonValue, error) {
+func Parse(reader io.Reader) (*Value, error) {
 	return parseFrom("", reader)
 }
 
-func parseFrom(source string, reader io.Reader) (*IonValue, error) {
+func parseFrom(source string, reader io.Reader) (*Value, error) {
 	p := &Parser{scanner: NewScanner(reader), source: source}
 	return p.parse()
 }
@@ -60,12 +60,12 @@ func (p *Parser) scanIgnoreWhitespace() (tok Token, lit string) {
 	return
 }
 
-func (p *Parser) parse() (*IonValue, error) {
+func (p *Parser) parse() (*Value, error) {
 	tok, lit := p.scanIgnoreWhitespace()
 	return p.parseToken(tok, lit)
 }
 
-func (p *Parser) parseToken(tok Token, lit string) (*IonValue, error) {
+func (p *Parser) parseToken(tok Token, lit string) (*Value, error) {
 	if tok != EOF {
 		if tok == ILLEGAL {
 			p.err = fmt.Errorf("token not handled: %s - %q", tok, lit)
@@ -85,13 +85,13 @@ func (p *Parser) parseToken(tok Token, lit string) (*IonValue, error) {
 				p.unscan()
 			}
 			if lit == "true" {
-				return &IonValue{Type: BoolType, Int: 1}, nil
+				return &Value{Type: BoolType, Int: 1}, nil
 			} else if lit == "false" {
-				return &IonValue{Type: BoolType, Int: 0}, nil
+				return &Value{Type: BoolType, Int: 0}, nil
 			} else if lit == "null" {
-				return &IonValue{Type: NullType}, nil
+				return &Value{Type: NullType}, nil
 			}
-			return &IonValue{Type: SymbolType, Text: lit}, nil
+			return &Value{Type: SymbolType, Text: lit}, nil
 		case OPEN_PAREN:
 			return p.parseSequence(CLOSE_PAREN)
 		case OPEN_BRACKET:
@@ -108,7 +108,7 @@ func (p *Parser) parseToken(tok Token, lit string) (*IonValue, error) {
 				if !strings.HasPrefix(lit, "0x") && !strings.HasPrefix(lit, "0b") {
 					n, err := strconv.ParseFloat(lit, 64)
 					if err == nil {
-						return &IonValue{Type: FloatType, Float: n}, nil
+						return &Value{Type: FloatType, Float: n}, nil
 					}
 				}
 				return nil, fmt.Errorf("Cannot parse real number: %q", lit)
@@ -125,10 +125,10 @@ func (p *Parser) parseToken(tok Token, lit string) (*IonValue, error) {
 				if err != nil {
 					return nil, fmt.Errorf("Cannot parse base %d integer: %q", base, lit)
 				}
-				return &IonValue{Type: IntType, Int: i}, nil
+				return &Value{Type: IntType, Int: i}, nil
 			}
 		case STRING:
-			return &IonValue{Type: StringType, Text: lit}, nil
+			return &Value{Type: StringType, Text: lit}, nil
 		default:
 			p.err = fmt.Errorf("token not handled: %s - %q", tok, lit)
 			return nil, p.err
@@ -137,8 +137,8 @@ func (p *Parser) parseToken(tok Token, lit string) (*IonValue, error) {
 	return nil, nil
 }
 
-func (p *Parser) parseSequence(end Token) (*IonValue, error) {
-	seq := make([]*IonValue, 0)
+func (p *Parser) parseSequence(end Token) (*Value, error) {
+	seq := make([]Value, 0)
 	tok, lit := p.scanIgnoreWhitespace()
 	for tok != EOF {
 		if tok == CLOSE_BRACKET || tok == CLOSE_PAREN {
@@ -146,9 +146,9 @@ func (p *Parser) parseSequence(end Token) (*IonValue, error) {
 				return nil, fmt.Errorf("Bad sequence, expecting %v, encounted %s", end, tok)
 			}
 			if end == CLOSE_PAREN {
-				return &IonValue{Type: SexpType, Sequence: seq}, nil
+				return &Value{Type: SexpType, Sequence: seq}, nil
 			}
-			return &IonValue{Type: ListType, Sequence: seq}, nil
+			return &Value{Type: ListType, Sequence: seq}, nil
 		} else {
 			//to do: fix this to error on missing commas, this assumes they are optional
 			elem, err := p.parseToken(tok, lit)
@@ -156,7 +156,7 @@ func (p *Parser) parseSequence(end Token) (*IonValue, error) {
 				return nil, err
 			}
 			if elem != nil {
-				seq = append(seq, elem)
+				seq = append(seq, *elem)
 			}
 			tok, lit = p.scanIgnoreWhitespace()
 		}
@@ -164,12 +164,12 @@ func (p *Parser) parseSequence(end Token) (*IonValue, error) {
 	return nil, fmt.Errorf("Unexpected EOF")
 }
 
-func (p *Parser) parseStruct() (*IonValue, error) {
-	fields := make([]IonField, 0)
+func (p *Parser) parseStruct() (*Value, error) {
+	fields := make([]Field, 0)
 	tok, lit := p.scanIgnoreWhitespace()
 	for tok != EOF {
 		if tok == CLOSE_BRACE {
-			return &IonValue{Type: StructType, Struct: fields}, nil
+			return &Value{Type: StructType, Struct: fields}, nil
 		} else if tok == COMMA {
 			tok, lit = p.scanIgnoreWhitespace()
 		} else {
@@ -180,7 +180,7 @@ func (p *Parser) parseStruct() (*IonValue, error) {
 			if elem.Type != SymbolType && elem.Type != StringType {
 				return nil, fmt.Errorf("Invalid struct field name: %v", elem)
 			}
-			var field IonField
+			var field Field
 			field.Name = elem.Text
 			tok, lit = p.scanIgnoreWhitespace()
 			if tok != COLON {

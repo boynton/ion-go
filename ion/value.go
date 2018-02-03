@@ -20,22 +20,22 @@ const (
 )
 
 //a simplified view of what this can actually be
-type IonValue struct {
+type Value struct {
 	Type        Type
 	Annotations []string
 	Int         int64
 	Float       float64
 	Text        string
-	Sequence    []*IonValue
-	Struct      []IonField
+	Sequence    []Value
+	Struct      []Field
 }
 
-type IonField struct {
+type Field struct {
 	Name  string
-	Value IonValue
+	Value Value
 }
 
-func (v IonValue) String() string {
+func (v Value) String() string {
 	switch v.Type {
 	case NullType:
 		return "null"
@@ -55,7 +55,7 @@ func (v IonValue) String() string {
 	case StructType:
 		return annotate(v) + structToString(v.Struct)
 	case ListType:
-		return sequenceToString(v.Sequence, '(', ',', ')')
+		return sequenceToString(v.Sequence, '[', ',', ']')
 	case SexpType:
 		return sequenceToString(v.Sequence, '(', 0, ')')
 	default:
@@ -63,7 +63,7 @@ func (v IonValue) String() string {
 	}
 }
 
-func annotate(val IonValue) string {
+func annotate(val Value) string {
 	if len(val.Annotations) > 0 {
 		var buf bytes.Buffer
 		for _, anno := range val.Annotations {
@@ -84,7 +84,7 @@ func symbolToString(val string) string {
 	//return val
 }
 
-func structToString(fields []IonField) string {
+func structToString(fields []Field) string {
 	switch len(fields) {
 	case 0:
 		return "{}"
@@ -109,7 +109,7 @@ func structToString(fields []IonField) string {
 	}
 }
 
-func sequenceToString(values []*IonValue, openChar, delimChar, closeChar rune) string {
+func sequenceToString(values []Value, openChar, delimChar, closeChar rune) string {
 	switch len(values) {
 	case 0:
 		return string(openChar) + string(closeChar)
